@@ -21,21 +21,17 @@
 
 extern "C" {
 #include <apriltag/apriltag.h>
-#include <apriltag/apriltag_pose.h>
 #include <apriltag/tag16h5.h>
-#include <apriltag/tag36h11.h>
 }
-
-using namespace std;
 
 
 
 // TODO: remove aa241x from the node name
-class VisionNode {
+class StillNode {
 
 public:
 
-	VisionNode(int frame_width, int frame_height, bool publish_image);
+	StillNode(int frame_width, int frame_height, bool publish_image);
 
 
 	// main loop
@@ -81,7 +77,7 @@ private:
 };
 
 
-VisionNode::VisionNode(int frame_width, int frame_height, bool publish_image) :
+StillNode::StillNode(int frame_width, int frame_height, bool publish_image) :
 _frame_width(frame_width),
 _frame_height(frame_height),
 _it(_nh)
@@ -97,7 +93,7 @@ _it(_nh)
 }
 
 
-int VisionNode::run() {
+int StillNode::run() {
 
 	// TODO: set up the tag detector
 	// TODO: determine if the setup is best in the constructor or here
@@ -112,8 +108,7 @@ int VisionNode::run() {
     }
 
     // apriltag handling setup
-	//apriltag_family_t *tf = tag16h5_create();
-    apriltag_family_t *tf = tag36h11_create();
+	apriltag_family_t *tf = tag16h5_create();
 	
 	apriltag_detector_t *td = apriltag_detector_create();
     apriltag_detector_add_family(td, tf);
@@ -135,6 +130,7 @@ int VisionNode::run() {
 		// TODO: grab the frame from the camera
         _camera.grab();
 		_camera.retrieve(frame_gray);
+        std::ofstream output_file("VID5/xx1.jpg")
 		image_time = ros::Time::now();
 
 
@@ -162,30 +158,6 @@ int VisionNode::run() {
             for (int i = 0; i < zarray_size(detections); i++) {
                 apriltag_detection_t *det;
                 zarray_get(detections, i, &det);
-
-                // Define camera parameters struct
-                apriltag_detection_info_t info;
-                info.det = det;
-                info.tagsize = 0.16;
-                info.fx = 1.0007824174077226e+03;
-                info.fy = 1.0007824174077226e+03;
-                info.cx = 640.;
-                info.cy = 360.;
-
-                // Estimate pose
-                apriltag_pose_t pose;
-                double err = estimate_tag_pose(&info, &pose);
-                matd_t* t = pose.t;
-                double *tData = t->data;
-                double x = tData[0];
-                double y = tData[1];
-                double z = tData[2];
-                double distance = sqrt(x*x + y*y + z*z);
-                cout << "this is the x: " << x << endl;
-                cout << "this is the y: " << y << endl;
-                cout << "this is the z: " << z << endl;
-                cout << "this is the distance: " << distance << endl;
-
                 line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
                          cv::Point(det->p[1][0], det->p[1][1]),
                          cv::Scalar(0, 0xff, 0), 2);
@@ -234,8 +206,7 @@ int VisionNode::run() {
 
     // remove apriltag stuff
 	apriltag_detector_destroy(td);
-	//tag16h5_destroy(tf);
-    tag36h11_destroy(tf);
+	tag16h5_destroy(tf);
 
 }
 

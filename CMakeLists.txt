@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(aa241x_vision)
+project(aa241x_student)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -113,7 +113,7 @@ set_property(TARGET apriltag_lib PROPERTY IMPORTED_LOCATION /usr/local/lib/libap
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES aa241x_vision
+#  LIBRARIES aa241x_student
 #  CATKIN_DEPENDS roscpp rospy std_msgs
 #  DEPENDS system_lib
 )
@@ -131,7 +131,7 @@ include_directories(
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/aa241x_vision.cpp
+#   src/${PROJECT_NAME}/aa241x_student.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -142,7 +142,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/aa241x_vision_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/aa241x_student_node.cpp)
 #add_executable(control_node src/control_node.cpp)
 add_executable(vision_node src/vision_node.cpp)
 add_executable(display_node src/display_node.cpp)
@@ -221,7 +221,7 @@ target_link_libraries(display_node
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_aa241x_vision.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_aa241x_student.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
