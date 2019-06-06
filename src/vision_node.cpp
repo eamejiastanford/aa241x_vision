@@ -13,6 +13,7 @@
 #include <iostream>
 
 #include <ros/ros.h>
+#include <string>
 
 #include <raspicam/raspicam_cv.h>
 #include <image_transport/image_transport.h>
@@ -26,9 +27,13 @@ extern "C" {
 #include <apriltag/tag36h11.h>
 }
 
+#include <std_msgs/String.h>
+#include <std_msgs/Float64.h>
+#include <std_msgs/Bool.h>
+
+const std::string Navigate_to_land = "Navigate_to_land";
+
 using namespace std;
-
-
 
 // TODO: remove aa241x from the node name
 class VisionNode {
@@ -36,7 +41,6 @@ class VisionNode {
 public:
 
 	VisionNode(int frame_width, int frame_height, bool publish_image);
-
 
 	// main loop
 	int run();
@@ -52,32 +56,79 @@ private:
 	// settings, etc
 	int _frame_width;		// image width to use in [px]
 	int _frame_height;		// image height to use in [px]
-	bool _publish_image;	// true if the image data should be published
 
 	// camera stuff
 	raspicam::RaspiCam_Cv _camera;	// TODO: use the correct class name here
 
-	// april tag stuff
-	//APDetector _detector;	// TODO: use the correct class name here
+        // Drone state
+        std::string _STATE;
 
-	// subscribers
-	// TODO: figure out what subscriber may be desired
+        // Tag relative position (camera frame) from the drone
+        float _xr;
+        float _yr;
+        float _zr;
 
+        // Drone position (for sim)
+        float _xc;
+        float _yc;
+        float _zc;
+
+        // Drone orientation (for sim)
+        float _yaw;
+        float _pitch;
+        float _roll;
+
+        // Landing position (for sim)
+        float _landing_e;
+        float _landing_n;
+        float _z0;
+
+        // Subscribers
+        ros::Subscriber _droneState_sub;
+        ros::Subscriber _xc_sub;
+        ros::Subscriber _yc_sub;
+        ros::Subscriber _zc_sub;
+        ros::Subscriber _yaw_sub;
+        ros::Subscriber _pitch_sub;
+        ros::Subscriber _roll_sub;
+        ros::Subscriber _z0_sub;
+
+
+        // Messages
+        std_msgs::Float64 _tag_relative_x_msg;
+        std_msgs::Float64 _tag_relative_y_msg;
+        std_msgs::Float64 _tag_relative_z_msg;
+        std_msgs::Bool _tag_found_msg;
+        std_msgs::String _droneState_msg;
 
 	// publishers
-	ros::Publisher _tag_relative_position_pub;	// the relative position vector to the truck
-	ros::Publisher _tag_details_pub;			// the raw tag details (for debugging)
-	image_transport::Publisher _image_pub;
+        ros::Publisher _tag_relative_x_pub;	// the relative position vector to the truck
+        ros::Publisher _tag_relative_y_pub;	// the relative position vector to the truck
+        ros::Publisher _tag_relative_z_pub;	// the relative position vector to the truck
+        ros::Publisher _tag_found_pub;
+        ros::Publisher _tag_details_pub;	// the raw tag details (for debugging)
 
-	// TODO: add a publisher of the image frame -> for the display node
+        //service
+        ros::ServiceClient _landing_loc_client;
 
-	// callbacks
-	// TODO: figure out what might be needed
+        // Callbacks
+        void droneStateCallback(const std_msgs::String::ConstPtr& msg);
 
+        void xcCallback(const std_msgs::Float64::ConstPtr& msg);
 
-	// helper functions
-	// TODO: any helper functions here
+        void ycCallback(const std_msgs::Float64::ConstPtr& msg);
 
+        void zcCallback(const std_msgs::Float64::ConstPtr& msg);
+
+        void yawCallback(const std_msgs::Float64::ConstPtr& msg);
+
+        void pitchCallback(const std_msgs::Float64::ConstPtr& msg);
+
+        void rollCallback(const std_msgs::Float64::ConstPtr& msg);
+
+        void z0Callback(const std_msgs::Float64::ConstPtr& msg);
+
+//        void simTagPosition();
 };
 
 
@@ -86,79 +137,127 @@ _frame_width(frame_width),
 _frame_height(frame_height),
 _it(_nh)
 {
-	_image_pub = _it.advertise("image", 1);
+    // Publishers
+    _tag_relative_x_pub = _it.advertise<std_msgs::Float64>("tagRelative_x", 10);
+    _tag_relative_y_pub = _it.advertise<std_msgs::Float64>("tagRelative_y", 10);
+    _tag_relative_z_pub = _it.advertise<std_msgs::Float64>("tagRelative_z", 10);
+    _tag_found_pub      = _it.advertise<std_msgs::Bool>("tagFound?",10);
+
+    // Subscribers
+    _droneState_sub = _nh.subscribe<std_msgs::String>("drone_state", 10, &VisionNode::droneStateCallback, this);
+    _xc_sub = _nh.subscribe<std_msgs::Float64>("xc", 10, &VisionNode::xcCallback, this);
+    _yc_sub = _nh.subscribe<std_msgs::Float64>("yc", 10, &VisionNode::ycCallback, this);
+    _zc_sub =  _nh.subscribe<std_msgs::Float64>("zc", 10, &VisionNode::zcCallback, this);
+    _yaw_sub = _nh.subscribe<std_msgs::Float64>("yaw", 10, &VisionNode::yawCallback, this);
+    _pitch_sub = _nh.subscribe<std_msgs::Float64>("pitch", 10, &VisionNode::pitchCallback, this);
+    _roll_sub = _nh.subscribe<std_msgs::Float64>("roll", 10, &VisionNode::rollCallback, this);
+    _z0_sub = _nh.subscribe<std_msgs::Float64>("z0", 10, &VisionNode::z0Callback, this);
+
+    // service
+    _landing_loc_client = _nh.serviceClient<aa241x_mission::RequestLandingPosition>("lake_lag_landing_loc");
+
 
     // configure the camera
     _camera.set(CV_CAP_PROP_FORMAT, CV_8UC1);
     _camera.set(cv::CAP_PROP_FRAME_WIDTH, _frame_width);
-	_camera.set(cv::CAP_PROP_FRAME_HEIGHT, _frame_height);
-	_camera.set(cv::CAP_PROP_FORMAT, CV_8UC1);
+    _camera.set(cv::CAP_PROP_FRAME_HEIGHT, _frame_height);
+    _camera.set(cv::CAP_PROP_FORMAT, CV_8UC1);
 
 }
 
+void VisionNode::droneStateCallback(const std_msgs::String::ConstPtr& msg) {
+        // save the state locally to be used in the main loop
+        _STATE = msg->data;
+}
+
+void VisionNode::xcCallback(const std_msgs::Float64::ConstPtr& msg) {
+    _xc = msg->data;
+}
+
+void VisionNode::ycCallback(const std_msgs::Float64::ConstPtr &msg) {
+    _yc = msg->data;
+}
+
+void VisionNode::zcCallback(const std_msgs::Float64::ConstPtr& msg) {
+    _zc = msg->data;
+}
+
+void VisionNode::yawCallback(const std_msgs::Float64::ConstPtr &msg) {
+    _yaw = msg->data;
+}
+
+void VisionNode::pitchCallback(const std_msgs::Float64::ConstPtr &msg) {
+    _pitch = msg->data;
+}
+
+void VisionNode::rollCallback(const std_msgs::Float64::ConstPtr &msg) {
+    _roll = msg->data;
+}
+
+void VisionNode::z0Callback(const std_msgs::Float64::ConstPtr& msg) {
+    _z0 = msg->data;
+}
+//// Simulates the position of the april tag
+//void VisionNode::simTagPosition() {
+
+//    float le = _landing_e;
+//    float ln = _landing_n;
+//    float lu = _z0;
+
+//    _xr = -cos(_pitch)*cos(_yaw)*(le-_xc) - (ln-_yc)*(sin(_yaw)*cos(_roll)+sin(_pitch)*sin(_roll)*cos(_yaw)) - (lu-_zc)*(sin(_roll)*sin(_yaw)-sin(_pitch)*cos(_roll)*cos(_yaw));
+
+//    _yr = (lu-_zc)*(sin(_roll)*cos(_yaw)+sin(_pitch)*sin(_yaw)*cos(_roll)) + (ln-_yc)*(cos(_roll)*cos(_yaw)-sin(_pitch)*sin(_roll)*sin(_yaw)) - sin(_yaw)*cos(_pitch)*(le-_xc);
+
+//    _zr = sin(_roll)*cos(_pitch)*(ln-_yc) - sin(_pitch)*(le-_xc) - cos(_pitch)*cos(_roll)*(lu-_zc);
+//}
 
 int VisionNode::run() {
 
-	// TODO: set up the tag detector
-	// TODO: determine if the setup is best in the constructor or here
-	// TODO: try another one of the apriltag libraries???
-
-    // open the camera
-    ROS_INFO("opening camera");
-	if (!_camera.open()) {
-        ROS_ERROR("Error opening the camera");
-        std::cerr << "Error opening the camera" << std::endl;
-        return -1;
-    }
-
     // apriltag handling setup
-	//apriltag_family_t *tf = tag16h5_create();
+    //apriltag_family_t *tf = tag16h5_create();
     apriltag_family_t *tf = tag36h11_create();
-	
-	apriltag_detector_t *td = apriltag_detector_create();
+    apriltag_detector_t *td = apriltag_detector_create();
     apriltag_detector_add_family(td, tf);
     td->quad_decimate = 3.0;
     td->quad_sigma = 0.0;
     td->refine_edges = 0;
     //td->decode_sharpening = 0.25;
 
-	ros::Time image_time; 	// timestamp of when the image was grabbed
-	cv::Mat frame_gray;		// the image in grayscale
+    cv::Mat frame_gray;		// the image in grayscale
 
+    // loop while the node should be running
+    while (ros::ok()) {
 
-	// loop while the node should be running
-	while (ros::ok()) {
+        // Check if we should use the camera..
+        if (true){ //(_STATE == Navigate_to_land) {
 
-		// TODO: probably want to have a mission state machine running so that
-		// this processing is not occuring throughout the entire flight!!!
+            // open the camera
+            ROS_INFO("opening camera");
+            if (!_camera.open()) {
+                ROS_ERROR("Error opening the camera");
+                std::cerr << "Error opening the camera" << std::endl;
+                return -1;
+            }
 
-		// TODO: grab the frame from the camera
-        _camera.grab();
-		_camera.retrieve(frame_gray);
-		image_time = ros::Time::now();
+            _camera.grab();
+            _camera.retrieve(frame_gray);
 
+            image_u8_t im = { .width = frame_gray.cols,
+                        .height = frame_gray.rows,
+                        .stride = frame_gray.cols,
+                        .buf = frame_gray.data
+            };
 
-        // Make an image_u8_t header for the Mat data to pass over to the april
-        // tag detector
-        image_u8_t im = { .width = frame_gray.cols,
-            .height = frame_gray.rows,
-            .stride = frame_gray.cols,
-            .buf = frame_gray.data
-        };
-		
-		zarray_t *detections = apriltag_detector_detect(td, &im);
-        ROS_INFO("%d tags detected", zarray_size(detections));
+            zarray_t *detections = apriltag_detector_detect(td, &im);
+            ROS_INFO("%d tags detected", zarray_size(detections));
 
+            if (zarray_size(detections) > 0){
+                _tag_found_msg.data = true;
+            }
+            else{
+                _tag_found_msg.data = false;
+            }
 
-		// TODO: compute the relative vector between me and the AprilTag
-		// NOTE: this will be left entirely to the students I think
-		// NOTE: I feel like it would be too easy to just give them that code
-
-		// TODO: publish the detection information
-
-
-		if (_publish_image) {
-            // Draw detection outlines
             for (int i = 0; i < zarray_size(detections); i++) {
                 apriltag_detection_t *det;
                 zarray_get(detections, i, &det);
@@ -180,66 +279,36 @@ int VisionNode::run() {
                 double x = tData[0];
                 double y = tData[1];
                 double z = tData[2];
-                double distance = sqrt(x*x + y*y + z*z);
-                cout << "this is the x: " << x << endl;
-                cout << "this is the y: " << y << endl;
-                cout << "this is the z: " << z << endl;
-                cout << "this is the distance: " << distance << endl;
 
-                line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
-                         cv::Point(det->p[1][0], det->p[1][1]),
-                         cv::Scalar(0, 0xff, 0), 2);
-                line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
-                         cv::Point(det->p[3][0], det->p[3][1]),
-                         cv::Scalar(0, 0, 0xff), 2);
-                line(frame_gray, cv::Point(det->p[1][0], det->p[1][1]),
-                         cv::Point(det->p[2][0], det->p[2][1]),
-                         cv::Scalar(0xff, 0, 0), 2);
-                line(frame_gray, cv::Point(det->p[2][0], det->p[2][1]),
-                         cv::Point(det->p[3][0], det->p[3][1]),
-                         cv::Scalar(0xff, 0, 0), 2);
+                // Publish the vector from the drone to the april tag (camera frame)
+                _tag_relative_x_msg.data = x;
+                _tag_relative_y_msg.data = y;
+                _tag_relative_z_msg.data = z;
 
-                std::stringstream ss;
-                ss << det->id;
-                cv::String text = ss.str();
-                int fontface = cv::FONT_HERSHEY_SCRIPT_SIMPLEX;
-                double fontscale = 1.0;
-                int baseline;
-                cv::Size textsize = cv::getTextSize(text, fontface, fontscale, 2,
-                                                &baseline);
-                cv::putText(frame_gray, text, cv::Point(det->c[0]-textsize.width/2,
-                                           det->c[1]+textsize.height/2),
-                        fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
+                _tag_relative_x_pub.publish(_tag_relative_x_msg);
+                _tag_relative_y_pub.publish(_tag_relative_y_msg);
+                _tag_relative_z_pub.publish(_tag_relative_z_msg);
+                _tag_found_pub.publish(_tag_found_msg);
             }
+            // clean up the detections
+            zarray_destroy(detections);
 
-			// publish the annotated image
-			std_msgs::Header header;
-			header.stamp = image_time;
-			sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(header, "mono8", frame_gray).toImageMsg();
-			_image_pub.publish(img_msg);
-		}
+        }
 
-        // clean up the detections
-        zarray_destroy(detections);
+        ros::spinOnce();
 
-
-		// TODO: if there are no subscribers, I'm not sure this is needed...
-		// though I wonder if it is needed from a time sync point of view
-		ros::spinOnce();
-	}
+    }
 
     // need to stop the camera
     ROS_INFO("stopping camera");
-	_camera.release();
+    _camera.release();
 
     // remove apriltag stuff
-	apriltag_detector_destroy(td);
-	//tag16h5_destroy(tf);
+    apriltag_detector_destroy(td);
+    //tag16h5_destroy(tf);
     tag36h11_destroy(tf);
 
 }
-
-
 
 
 int main(int argc, char **argv) {
