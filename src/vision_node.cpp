@@ -78,6 +78,14 @@ private:
 	// helper functions
 	// TODO: any helper functions here
 
+    //Low Pass Filter variables
+    float x_raw=0.0;
+    float y_raw=0.0;
+    float z_raw=0.0;
+    float x_est=0.0;
+    float y_est=0.0;
+    float z_est=0.0;
+
 };
 
 
@@ -112,8 +120,8 @@ int VisionNode::run() {
     }
 
     // apriltag handling setup
-	//apriltag_family_t *tf = tag16h5_create();
-    apriltag_family_t *tf = tag36h11_create();
+	apriltag_family_t *tf = tag16h5_create();
+    //apriltag_family_t *tf = tag36h11_create();
 	
 	apriltag_detector_t *td = apriltag_detector_create();
     apriltag_detector_add_family(td, tf);
@@ -166,7 +174,8 @@ int VisionNode::run() {
                 // Define camera parameters struct
                 apriltag_detection_info_t info;
                 info.det = det;
-                info.tagsize = 0.16;
+                //info.tagsize = 0.16;
+                info.tagsize = 0.09;
                 info.fx = 1.0007824174077226e+03;
                 info.fy = 1.0007824174077226e+03;
                 info.cx = 640.;
@@ -177,13 +186,20 @@ int VisionNode::run() {
                 double err = estimate_tag_pose(&info, &pose);
                 matd_t* t = pose.t;
                 double *tData = t->data;
-                double x = tData[0];
-                double y = tData[1];
-                double z = tData[2];
-                double distance = sqrt(x*x + y*y + z*z);
-                cout << "this is the x: " << x << endl;
-                cout << "this is the y: " << y << endl;
-                cout << "this is the z: " << z << endl;
+                x_raw = tData[0];
+                y_raw = tData[1];
+                z_raw = tData[2];
+                //Low Pass Filter Parameters
+                float alpha = 0.2;
+                float beta = 0.05;
+                //Low Pass Filter
+                x_est = alpha*x_raw +(1-alpha)*x_est;
+                y_est = alpha*y_raw +(1-alpha)*y_est;
+                z_est = beta*z_raw +(1-beta)*z_est;
+                double distance = sqrt(x_est*x_est + y_est*y_est + z_est*z_est);
+                cout << "this is the x: " << x_est << endl;
+                cout << "this is the y: " << y_est << endl;
+                cout << "this is the z: " << z_est << endl;
                 cout << "this is the distance: " << distance << endl;
 
                 line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
@@ -234,8 +250,8 @@ int VisionNode::run() {
 
     // remove apriltag stuff
 	apriltag_detector_destroy(td);
-	//tag16h5_destroy(tf);
-    tag36h11_destroy(tf);
+	tag16h5_destroy(tf);
+    //tag36h11_destroy(tf);
 
 }
 
