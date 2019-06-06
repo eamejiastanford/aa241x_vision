@@ -31,6 +31,7 @@ extern "C" {
 #include <std_msgs/Float64.h>
 #include <std_msgs/Bool.h>
 
+
 const std::string Navigate_to_land = "Navigate_to_land";
 const std::string CAMERA_TEST = "CAMERA_TEST";
 
@@ -52,8 +53,6 @@ private:
 
 	// node handler
 	ros::NodeHandle _nh;
-	image_transport::ImageTransport _it;
-
 
 	// settings, etc
 	int _frame_width;		// image width to use in [px]
@@ -70,31 +69,8 @@ private:
         float _yr;
         float _zr;
 
-        // Drone position (for sim)
-        float _xc;
-        float _yc;
-        float _zc;
-
-        // Drone orientation (for sim)
-        float _yaw;
-        float _pitch;
-        float _roll;
-
-        // Landing position (for sim)
-        float _landing_e;
-        float _landing_n;
-        float _z0;
-
         // Subscribers
         ros::Subscriber _droneState_sub;
-        ros::Subscriber _xc_sub;
-        ros::Subscriber _yc_sub;
-        ros::Subscriber _zc_sub;
-        ros::Subscriber _yaw_sub;
-        ros::Subscriber _pitch_sub;
-        ros::Subscriber _roll_sub;
-        ros::Subscriber _z0_sub;
-
 
         // Messages
         std_msgs::Float64 _tag_relative_x_msg;
@@ -110,25 +86,8 @@ private:
         ros::Publisher _tag_found_pub;
         ros::Publisher _tag_details_pub;	// the raw tag details (for debugging)
 
-        //service
-        ros::ServiceClient _landing_loc_client;
-
         // Callbacks
         void droneStateCallback(const std_msgs::String::ConstPtr& msg);
-
-        void xcCallback(const std_msgs::Float64::ConstPtr& msg);
-
-        void ycCallback(const std_msgs::Float64::ConstPtr& msg);
-
-        void zcCallback(const std_msgs::Float64::ConstPtr& msg);
-
-        void yawCallback(const std_msgs::Float64::ConstPtr& msg);
-
-        void pitchCallback(const std_msgs::Float64::ConstPtr& msg);
-
-        void rollCallback(const std_msgs::Float64::ConstPtr& msg);
-
-        void z0Callback(const std_msgs::Float64::ConstPtr& msg);
 
         //Low Pass Filter variables
         float x_raw=0.0;
@@ -143,28 +102,16 @@ private:
 
 VisionNode::VisionNode(int frame_width, int frame_height, bool publish_image) :
 _frame_width(frame_width),
-_frame_height(frame_height),
-_it(_nh)
+_frame_height(frame_height)
 {
     // Publishers
-    _tag_relative_x_pub = _it.advertise<std_msgs::Float64>("tagRelative_x", 10);
-    _tag_relative_y_pub = _it.advertise<std_msgs::Float64>("tagRelative_y", 10);
-    _tag_relative_z_pub = _it.advertise<std_msgs::Float64>("tagRelative_z", 10);
-    _tag_found_pub      = _it.advertise<std_msgs::Bool>("tagFound?",10);
+    _tag_relative_x_pub = _nh.advertise<std_msgs::Float64>("tag_rel_x", 10);
+    _tag_relative_y_pub = _nh.advertise<std_msgs::Float64>("tag_rel_y", 10);
+    _tag_relative_z_pub = _nh.advertise<std_msgs::Float64>("tag_rel_z", 10);
+    _tag_found_pub      = _nh.advertise<std_msgs::Bool>("tagFound",10);
 
     // Subscribers
     _droneState_sub = _nh.subscribe<std_msgs::String>("drone_state", 10, &VisionNode::droneStateCallback, this);
-    _xc_sub = _nh.subscribe<std_msgs::Float64>("xc", 10, &VisionNode::xcCallback, this);
-    _yc_sub = _nh.subscribe<std_msgs::Float64>("yc", 10, &VisionNode::ycCallback, this);
-    _zc_sub =  _nh.subscribe<std_msgs::Float64>("zc", 10, &VisionNode::zcCallback, this);
-    _yaw_sub = _nh.subscribe<std_msgs::Float64>("yaw", 10, &VisionNode::yawCallback, this);
-    _pitch_sub = _nh.subscribe<std_msgs::Float64>("pitch", 10, &VisionNode::pitchCallback, this);
-    _roll_sub = _nh.subscribe<std_msgs::Float64>("roll", 10, &VisionNode::rollCallback, this);
-    _z0_sub = _nh.subscribe<std_msgs::Float64>("z0", 10, &VisionNode::z0Callback, this);
-
-    // service
-    _landing_loc_client = _nh.serviceClient<aa241x_mission::RequestLandingPosition>("lake_lag_landing_loc");
-
 
     // configure the camera
     _camera.set(CV_CAP_PROP_FORMAT, CV_8UC1);
@@ -179,51 +126,19 @@ void VisionNode::droneStateCallback(const std_msgs::String::ConstPtr& msg) {
         _STATE = msg->data;
 }
 
-void VisionNode::xcCallback(const std_msgs::Float64::ConstPtr& msg) {
-    _xc = msg->data;
-}
-
-void VisionNode::ycCallback(const std_msgs::Float64::ConstPtr &msg) {
-    _yc = msg->data;
-}
-
-void VisionNode::zcCallback(const std_msgs::Float64::ConstPtr& msg) {
-    _zc = msg->data;
-}
-
-void VisionNode::yawCallback(const std_msgs::Float64::ConstPtr &msg) {
-    _yaw = msg->data;
-}
-
-void VisionNode::pitchCallback(const std_msgs::Float64::ConstPtr &msg) {
-    _pitch = msg->data;
-}
-
-void VisionNode::rollCallback(const std_msgs::Float64::ConstPtr &msg) {
-    _roll = msg->data;
-}
-
-void VisionNode::z0Callback(const std_msgs::Float64::ConstPtr& msg) {
-    _z0 = msg->data;
-}
-//// Simulates the position of the april tag
-//void VisionNode::simTagPosition() {
-
-//    float le = _landing_e;
-//    float ln = _landing_n;
-//    float lu = _z0;
-
-//    _xr = -cos(_pitch)*cos(_yaw)*(le-_xc) - (ln-_yc)*(sin(_yaw)*cos(_roll)+sin(_pitch)*sin(_roll)*cos(_yaw)) - (lu-_zc)*(sin(_roll)*sin(_yaw)-sin(_pitch)*cos(_roll)*cos(_yaw));
-
-//    _yr = (lu-_zc)*(sin(_roll)*cos(_yaw)+sin(_pitch)*sin(_yaw)*cos(_roll)) + (ln-_yc)*(cos(_roll)*cos(_yaw)-sin(_pitch)*sin(_roll)*sin(_yaw)) - sin(_yaw)*cos(_pitch)*(le-_xc);
-
-//    _zr = sin(_roll)*cos(_pitch)*(ln-_yc) - sin(_pitch)*(le-_xc) - cos(_pitch)*cos(_roll)*(lu-_zc);
-//}
 
 int VisionNode::run() {
 
+    // open the camera
+    ROS_INFO("opening camera");
+    if (!_camera.open()) {
+        ROS_ERROR("Error opening the camera");
+        std::cerr << "Error opening the camera" << std::endl;
+        return -1;
+    }
+
     // apriltag handling setup
-    priltag_family_t *tf = tag16h5_create();
+    apriltag_family_t *tf = tag16h5_create();
     //apriltag_family_t *tf = tag36h11_create();
     apriltag_detector_t *td = apriltag_detector_create();
     apriltag_detector_add_family(td, tf);
@@ -239,14 +154,6 @@ int VisionNode::run() {
 
         // Check if we should use the camera..
         if (_STATE == Navigate_to_land || _STATE == CAMERA_TEST) {
-
-            // open the camera
-            ROS_INFO("opening camera");
-            if (!_camera.open()) {
-                ROS_ERROR("Error opening the camera");
-                std::cerr << "Error opening the camera" << std::endl;
-                return -1;
-            }
 
             // Take a picture
             _camera.grab();
