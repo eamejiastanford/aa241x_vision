@@ -128,7 +128,14 @@ private:
 
         void z0Callback(const std_msgs::Float64::ConstPtr& msg);
 
-//        void simTagPosition();
+        //Low Pass Filter variables
+        float x_raw=0.0;
+        float y_raw=0.0;
+        float z_raw=0.0;
+        float x_est=0.0;
+        float y_est=0.0;
+        float z_est=0.0;
+
 };
 
 
@@ -214,8 +221,8 @@ void VisionNode::z0Callback(const std_msgs::Float64::ConstPtr& msg) {
 int VisionNode::run() {
 
     // apriltag handling setup
-    //apriltag_family_t *tf = tag16h5_create();
-    apriltag_family_t *tf = tag36h11_create();
+    priltag_family_t *tf = tag16h5_create();
+    //apriltag_family_t *tf = tag36h11_create();
     apriltag_detector_t *td = apriltag_detector_create();
     apriltag_detector_add_family(td, tf);
     td->quad_decimate = 3.0;
@@ -229,7 +236,7 @@ int VisionNode::run() {
     while (ros::ok()) {
 
         // Check if we should use the camera..
-        if (true){ //(_STATE == Navigate_to_land) {
+        if (_STATE == Navigate_to_land) {
 
             // open the camera
             ROS_INFO("opening camera");
@@ -239,18 +246,22 @@ int VisionNode::run() {
                 return -1;
             }
 
+            // Take a picture
             _camera.grab();
             _camera.retrieve(frame_gray);
 
+            // Create an image to do detection
             image_u8_t im = { .width = frame_gray.cols,
                         .height = frame_gray.rows,
                         .stride = frame_gray.cols,
                         .buf = frame_gray.data
             };
 
+            // Detect apriltags
             zarray_t *detections = apriltag_detector_detect(td, &im);
             ROS_INFO("%d tags detected", zarray_size(detections));
 
+            // Check if we found april tags
             if (zarray_size(detections) > 0){
                 _tag_found_msg.data = true;
             }
@@ -258,6 +269,7 @@ int VisionNode::run() {
                 _tag_found_msg.data = false;
             }
 
+            // Loop through list of detections
             for (int i = 0; i < zarray_size(detections); i++) {
                 apriltag_detection_t *det;
                 zarray_get(detections, i, &det);
@@ -265,7 +277,8 @@ int VisionNode::run() {
                 // Define camera parameters struct
                 apriltag_detection_info_t info;
                 info.det = det;
-                info.tagsize = 0.16;
+                //info.tagsize = 0.16;
+                info.tagsize = 0.09;
                 info.fx = 1.0007824174077226e+03;
                 info.fy = 1.0007824174077226e+03;
                 info.cx = 640.;
@@ -276,14 +289,55 @@ int VisionNode::run() {
                 double err = estimate_tag_pose(&info, &pose);
                 matd_t* t = pose.t;
                 double *tData = t->data;
-                double x = tData[0];
-                double y = tData[1];
-                double z = tData[2];
+                x_raw = tData[0];
+                y_raw = tData[1];
+                z_raw = tData[2];
+                //Low Pass Filter Parameters
+                float alpha = 0.2;
+                float beta = 0.05;
+                //Low Pass Filter
+                x_est = alpha*x_raw +(1-alpha)*x_est;
+                y_est = alpha*y_raw +(1-alpha)*y_est;
+                z_est = beta*z_raw +(1-beta)*z_est;
+                double distance = sqrt(x_est*x_est + y_est*y_est + z_est*z_est);
+
+                _xr = x_est;
+                _yr = y_est;
+                _zr = z_est;
+//                cout << "this is the x: " << x_est << endl;
+//                cout << "this is the y: " << y_est << endl;
+//                cout << "this is the z: " << z_est << endl;
+//                cout << "this is the distance: " << distance << endl;
+
+                line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
+                         cv::Point(det->p[1][0], det->p[1][1]),
+                         cv::Scalar(0, 0xff, 0), 2);
+                line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
+                         cv::Point(det->p[3][0], det->p[3][1]),
+                         cv::Scalar(0, 0, 0xff), 2);
+                line(frame_gray, cv::Point(det->p[1][0], det->p[1][1]),
+                         cv::Point(det->p[2][0], det->p[2][1]),
+                         cv::Scalar(0xff, 0, 0), 2);
+                line(frame_gray, cv::Point(det->p[2][0], det->p[2][1]),
+                         cv::Point(det->p[3][0], det->p[3][1]),
+                         cv::Scalar(0xff, 0, 0), 2);
+
+                std::stringstream ss;
+                ss << det->id;
+                cv::String text = ss.str();
+                int fontface = cv::FONT_HERSHEY_SCRIPT_SIMPLEX;
+                double fontscale = 1.0;
+                int baseline;
+                cv::Size textsize = cv::getTextSize(text, fontface, fontscale, 2,
+                                                &baseline);
+                cv::putText(frame_gray, text, cv::Point(det->c[0]-textsize.width/2,
+                                           det->c[1]+textsize.height/2),
+                        fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
 
                 // Publish the vector from the drone to the april tag (camera frame)
-                _tag_relative_x_msg.data = x;
-                _tag_relative_y_msg.data = y;
-                _tag_relative_z_msg.data = z;
+                _tag_relative_x_msg.data = _xr;
+                _tag_relative_y_msg.data = _yr;
+                _tag_relative_z_msg.data = _zr;
 
                 _tag_relative_x_pub.publish(_tag_relative_x_msg);
                 _tag_relative_y_pub.publish(_tag_relative_y_msg);
@@ -304,9 +358,9 @@ int VisionNode::run() {
     _camera.release();
 
     // remove apriltag stuff
-    apriltag_detector_destroy(td);
-    //tag16h5_destroy(tf);
-    tag36h11_destroy(tf);
+	apriltag_detector_destroy(td);
+	tag16h5_destroy(tf);
+    //tag36h11_destroy(tf);
 
 }
 

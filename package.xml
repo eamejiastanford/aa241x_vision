@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>aa241x_student</name>
+  <name>aa241x_vision</name>
   <version>0.0.0</version>
-  <description>The aa241x_student package</description>
+  <description>The aa241x_vision package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
