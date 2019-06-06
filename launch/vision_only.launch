@@ -6,10 +6,12 @@
         <param name="display_video" value="true" />
     </node>
 
+    <!--
     <node pkg="aa241x_vision" type="display_node" name="display_node" output="screen">
         <param name="frame_width" value="1280" />
         <param name="frame_height" value="720" />
     </node>
+    -->
 
 
 
