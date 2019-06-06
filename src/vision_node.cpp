@@ -32,6 +32,8 @@ extern "C" {
 #include <std_msgs/Bool.h>
 
 const std::string Navigate_to_land = "Navigate_to_land";
+const std::string CAMERA_TEST = "CAMERA_TEST";
+
 
 using namespace std;
 
@@ -236,7 +238,7 @@ int VisionNode::run() {
     while (ros::ok()) {
 
         // Check if we should use the camera..
-        if (_STATE == Navigate_to_land) {
+        if (_STATE == Navigate_to_land || _STATE == CAMERA_TEST) {
 
             // open the camera
             ROS_INFO("opening camera");
