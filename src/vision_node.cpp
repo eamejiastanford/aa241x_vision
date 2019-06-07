@@ -73,6 +73,9 @@ private:
         // Tag orientation
         float _R33 = 0.0;
 
+        // Tag id
+        int id = -1;
+
         // Subscribers
         ros::Subscriber _droneState_sub;
 
@@ -148,14 +151,19 @@ int VisionNode::run() {
     }
 
     // apriltag handling setup
-    apriltag_family_t *tf = tag16h5_create();
-    //apriltag_family_t *tf = tag36h11_create();
+    apriltag_family_t *tf_16 = tag16h5_create();
+    apriltag_family_t *tf_36 = tag36h11_create();
 
-    apriltag_detector_t *td = apriltag_detector_create();
-    apriltag_detector_add_family(td, tf);
-    td->quad_decimate = 1.0;//3.0;
-    td->quad_sigma = 0.25;//0.0;
-    td->refine_edges = 0;
+    apriltag_detector_t *td_16 = apriltag_detector_create();
+    apriltag_detector_t *td_36 = apriltag_detector_create();
+    apriltag_detector_add_family(td_16, tf_16);
+    apriltag_detector_add_family(td_36, tf_36);
+    td_16->quad_decimate = 1.0;//3.0;
+    td_16->quad_sigma = 0.25;//0.0;
+    td_16->refine_edges = 0;
+    td_36->quad_decimate = 1.0;//3.0;
+    td_36->quad_sigma = 0.25;//0.0;
+    td_36->refine_edges = 0;
     //td->decode_sharpening = 0.25;
 
     cv::Mat frame_gray;		// the image in grayscale
@@ -178,21 +186,27 @@ int VisionNode::run() {
             };
 
             // Detect apriltags
-            zarray_t *detections = apriltag_detector_detect(td, &im);
-            ROS_INFO("%d tags detected", zarray_size(detections));
+            zarray_t *detections_16 = apriltag_detector_detect(td_16, &im);
+            zarray_t *detections_36 = apriltag_detector_detect(td_36, &im);
+            ROS_INFO("%d tags detected", zarray_size(detections_16));
+            ROS_INFO("%d tags detected", zarray_size(detections_36));
 
             // Check if we found april tags
-            if (zarray_size(detections) > 0){
+            if (zarray_size(detections_16) > 0){
                 _tag_found_msg.data = true;
             }
-            else{
+            // Check if we found april tags
+            else if (zarray_size(detections_36) > 0){
+                _tag_found_msg.data = true;
+            }
+            else {
                 _tag_found_msg.data = false;
             }
 
             // Loop through list of detections
-            for (int i = 0; i < zarray_size(detections); i++) {
+            for (int i = 0; i < zarray_size(detections_16); i++) {
                 apriltag_detection_t *det;
-                zarray_get(detections, i, &det);
+                zarray_get(detections_16, i, &det);
 
                 // Define camera parameters struct
                 apriltag_detection_info_t info;
@@ -217,10 +231,10 @@ int VisionNode::run() {
                 y_raw = tData[1];
                 z_raw = tData[2];
                 _R33 = RData[8];
-
+                id = det->id;
 
                 // Check if this is really an april tag based on detected z-axis orientation
-                if (_R33 >= 0.95) {
+                if (_R33 >= 0.95 && (id == 2 || id == 3) ) {
                     //Low Pass Filter Parameters
                     float alpha = 0.2;
                     float beta = 0.05;
@@ -240,7 +254,75 @@ int VisionNode::run() {
                     _tag_relative_y_msg.data = _yr;
                     _tag_relative_z_msg.data = _zr;
                     _R33_msg.data = _R33;
-                    _detected_tag_msg.data = det;
+                    _detected_tag_msg.data = id;
+
+                    _tag_relative_x_pub.publish(_tag_relative_x_msg);
+                    _tag_relative_y_pub.publish(_tag_relative_y_msg);
+                    _tag_relative_z_pub.publish(_tag_relative_z_msg);
+                    _tag_found_pub.publish(_tag_found_msg);
+                    _R33_pub.publish(_R33_msg);
+                    _detected_tag_pub.publish(_detected_tag_msg);
+
+    //                cout << "this is the x: " << x_est << endl;
+    //                cout << "this is the y: " << y_est << endl;
+    //                cout << "this is the z: " << z_est << endl;
+    //                cout << "this is the distance: " << distance << endl;
+                }
+
+            }
+
+            // Loop through list of detections
+            for (int i = 0; i < zarray_size(detections_36); i++) {
+                apriltag_detection_t *det;
+                zarray_get(detections_36, i, &det);
+
+                // Define camera parameters struct
+                apriltag_detection_info_t info;
+                info.det = det;
+                // ROSBAG DET:
+
+                //info.tagsize = 0.16;
+                info.tagsize = 0.20;
+                info.fx = 1.0007824174077226e+03;
+                info.fy = 1.0007824174077226e+03;
+                info.cx = 640.;
+                info.cy = 360.;
+
+                // Estimate pose
+                apriltag_pose_t pose;
+                double err = estimate_tag_pose(&info, &pose);
+                matd_t* t = pose.t;
+                matd_t* R = pose.R;
+                double *tData = t->data;
+                double *RData = R->data;
+                x_raw = tData[0];
+                y_raw = tData[1];
+                z_raw = tData[2];
+                _R33 = RData[8];
+                id = det->id;
+
+                // Check if this is really an april tag based on detected z-axis orientation
+                if (_R33 >= 0.95 && (id == 9) ) {
+                    //Low Pass Filter Parameters
+                    float alpha = 0.2;
+                    float beta = 0.05;
+                    //Low Pass Filter
+                    x_est = alpha*x_raw +(1-alpha)*x_est;
+                    y_est = alpha*y_raw +(1-alpha)*y_est;
+                    z_est = beta*z_raw +(1-beta)*z_est;
+                    double distance = sqrt(x_est*x_est + y_est*y_est + z_est*z_est);
+
+                    // Add offsets from relative location of camera from drone center
+                    _xr = x_est + 0.2;
+                    _yr = y_est + 0.0;
+                    _zr = z_est + 0.0;
+
+                    // Publish the vector from the drone to the april tag (camera frame)
+                    _tag_relative_x_msg.data = _xr;
+                    _tag_relative_y_msg.data = _yr;
+                    _tag_relative_z_msg.data = _zr;
+                    _R33_msg.data = _R33;
+                    _detected_tag_msg.data = id;
 
                     _tag_relative_x_pub.publish(_tag_relative_x_msg);
                     _tag_relative_y_pub.publish(_tag_relative_y_msg);
@@ -280,10 +362,10 @@ int VisionNode::run() {
                                                det->c[1]+textsize.height/2),
                             fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
 
-
             }
             // clean up the detections
-            zarray_destroy(detections);
+            zarray_destroy(detections_16);
+            zarray_destroy(detections_36);
 
         }
 
@@ -296,8 +378,10 @@ int VisionNode::run() {
     _camera.release();
 
     // remove apriltag stuff
-	apriltag_detector_destroy(td);
-	tag16h5_destroy(tf);
+	apriltag_detector_destroy(td_16);
+	apriltag_detector_destroy(td_36);
+	tag16h5_destroy(tf_16);
+	tag36h11_destroy(tf_36);
     //tag36h11_destroy(tf);
 
 }
