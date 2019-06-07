@@ -65,9 +65,12 @@ private:
         std::string _STATE;
 
         // Tag relative position (camera frame) from the drone
-        float _xr;
-        float _yr;
-        float _zr;
+        float _xr = 0.0;
+        float _yr = 0.0;
+        float _zr = 0.0;
+
+        // Tag orientation
+        float _R33 = 0.0;
 
         // Subscribers
         ros::Subscriber _droneState_sub;
@@ -78,6 +81,7 @@ private:
         std_msgs::Float64 _tag_relative_z_msg;
         std_msgs::Bool _tag_found_msg;
         std_msgs::String _droneState_msg;
+        std_msgs::Float64 _R33_msg;
 
 	// publishers
         ros::Publisher _tag_relative_x_pub;	// the relative position vector to the truck
@@ -85,6 +89,7 @@ private:
         ros::Publisher _tag_relative_z_pub;	// the relative position vector to the truck
         ros::Publisher _tag_found_pub;
         ros::Publisher _tag_details_pub;	// the raw tag details (for debugging)
+        ros::Publisher _R33_pub;
 
         // Callbacks
         void droneStateCallback(const std_msgs::String::ConstPtr& msg);
@@ -109,6 +114,7 @@ _frame_height(frame_height)
     _tag_relative_y_pub = _nh.advertise<std_msgs::Float64>("tag_rel_y", 10);
     _tag_relative_z_pub = _nh.advertise<std_msgs::Float64>("tag_rel_z", 10);
     _tag_found_pub      = _nh.advertise<std_msgs::Bool>("tagFound",10);
+    _R33_pub = _nh.advertise<std_msgs::Float64>("R33",10);
 
     // Subscribers
     _droneState_sub = _nh.subscribe<std_msgs::String>("drone_state", 10, &VisionNode::droneStateCallback, this);
@@ -197,10 +203,13 @@ int VisionNode::run() {
                 apriltag_pose_t pose;
                 double err = estimate_tag_pose(&info, &pose);
                 matd_t* t = pose.t;
+                matd_t* R = pose.R;
                 double *tData = t->data;
+                double *RData = R->data;
                 x_raw = tData[0];
                 y_raw = tData[1];
                 z_raw = tData[2];
+                _R33 = RData[8];
                 //Low Pass Filter Parameters
                 float alpha = 0.2;
                 float beta = 0.05;
@@ -213,6 +222,18 @@ int VisionNode::run() {
                 _xr = x_est;
                 _yr = y_est;
                 _zr = z_est;
+
+                // Publish the vector from the drone to the april tag (camera frame)
+                _tag_relative_x_msg.data = _xr;
+                _tag_relative_y_msg.data = _yr;
+                _tag_relative_z_msg.data = _zr;
+                _R33_msg.data = _R33;
+
+                _tag_relative_x_pub.publish(_tag_relative_x_msg);
+                _tag_relative_y_pub.publish(_tag_relative_y_msg);
+                _tag_relative_z_pub.publish(_tag_relative_z_msg);
+                _tag_found_pub.publish(_tag_found_msg);
+                _R33_pub.publish(_R33_msg);
 //                cout << "this is the x: " << x_est << endl;
 //                cout << "this is the y: " << y_est << endl;
 //                cout << "this is the z: " << z_est << endl;
@@ -243,15 +264,7 @@ int VisionNode::run() {
                                            det->c[1]+textsize.height/2),
                         fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
 
-                // Publish the vector from the drone to the april tag (camera frame)
-                _tag_relative_x_msg.data = _xr;
-                _tag_relative_y_msg.data = _yr;
-                _tag_relative_z_msg.data = _zr;
 
-                _tag_relative_x_pub.publish(_tag_relative_x_msg);
-                _tag_relative_y_pub.publish(_tag_relative_y_msg);
-                _tag_relative_z_pub.publish(_tag_relative_z_msg);
-                _tag_found_pub.publish(_tag_found_msg);
             }
             // clean up the detections
             zarray_destroy(detections);
