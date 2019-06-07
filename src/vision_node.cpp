@@ -235,7 +235,7 @@ int VisionNode::run() {
                 _tag_relative_y_msg.data = _yr;
                 _tag_relative_z_msg.data = _zr;
                 _R33_msg.data = _R33;
-                _detected_tag_msg.data = det;
+                _detected_tag_msg.data = det->id;
 
 
                 _tag_relative_x_pub.publish(_tag_relative_x_msg);
