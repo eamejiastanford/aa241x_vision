@@ -210,59 +210,65 @@ int VisionNode::run() {
                 y_raw = tData[1];
                 z_raw = tData[2];
                 _R33 = RData[8];
-                //Low Pass Filter Parameters
-                float alpha = 0.2;
-                float beta = 0.05;
-                //Low Pass Filter
-                x_est = alpha*x_raw +(1-alpha)*x_est;
-                y_est = alpha*y_raw +(1-alpha)*y_est;
-                z_est = beta*z_raw +(1-beta)*z_est;
-                double distance = sqrt(x_est*x_est + y_est*y_est + z_est*z_est);
 
-                _xr = x_est;
-                _yr = y_est;
-                _zr = z_est;
+                // Check if this is really an april tag based on detected z-axis orientation
+                if (_R33 >= 0.95) {
+                    //Low Pass Filter Parameters
+                    float alpha = 0.2;
+                    float beta = 0.05;
+                    //Low Pass Filter
+                    x_est = alpha*x_raw +(1-alpha)*x_est;
+                    y_est = alpha*y_raw +(1-alpha)*y_est;
+                    z_est = beta*z_raw +(1-beta)*z_est;
+                    double distance = sqrt(x_est*x_est + y_est*y_est + z_est*z_est);
 
-                // Publish the vector from the drone to the april tag (camera frame)
-                _tag_relative_x_msg.data = _xr;
-                _tag_relative_y_msg.data = _yr;
-                _tag_relative_z_msg.data = _zr;
-                _R33_msg.data = _R33;
+                    // Add offsets from relative location of camera from drone center
+                    _xr = x_est + 0.2;
+                    _yr = y_est + 0.0;
+                    _zr = z_est + 0.0;
 
-                _tag_relative_x_pub.publish(_tag_relative_x_msg);
-                _tag_relative_y_pub.publish(_tag_relative_y_msg);
-                _tag_relative_z_pub.publish(_tag_relative_z_msg);
-                _tag_found_pub.publish(_tag_found_msg);
-                _R33_pub.publish(_R33_msg);
-//                cout << "this is the x: " << x_est << endl;
-//                cout << "this is the y: " << y_est << endl;
-//                cout << "this is the z: " << z_est << endl;
-//                cout << "this is the distance: " << distance << endl;
+                    // Publish the vector from the drone to the april tag (camera frame)
+                    _tag_relative_x_msg.data = _xr;
+                    _tag_relative_y_msg.data = _yr;
+                    _tag_relative_z_msg.data = _zr;
+                    _R33_msg.data = _R33;
 
-                line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
-                         cv::Point(det->p[1][0], det->p[1][1]),
-                         cv::Scalar(0, 0xff, 0), 2);
-                line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
-                         cv::Point(det->p[3][0], det->p[3][1]),
-                         cv::Scalar(0, 0, 0xff), 2);
-                line(frame_gray, cv::Point(det->p[1][0], det->p[1][1]),
-                         cv::Point(det->p[2][0], det->p[2][1]),
-                         cv::Scalar(0xff, 0, 0), 2);
-                line(frame_gray, cv::Point(det->p[2][0], det->p[2][1]),
-                         cv::Point(det->p[3][0], det->p[3][1]),
-                         cv::Scalar(0xff, 0, 0), 2);
+                    _tag_relative_x_pub.publish(_tag_relative_x_msg);
+                    _tag_relative_y_pub.publish(_tag_relative_y_msg);
+                    _tag_relative_z_pub.publish(_tag_relative_z_msg);
+                    _tag_found_pub.publish(_tag_found_msg);
+                    _R33_pub.publish(_R33_msg);
+    //                cout << "this is the x: " << x_est << endl;
+    //                cout << "this is the y: " << y_est << endl;
+    //                cout << "this is the z: " << z_est << endl;
+    //                cout << "this is the distance: " << distance << endl;
+                }
 
-                std::stringstream ss;
-                ss << det->id;
-                cv::String text = ss.str();
-                int fontface = cv::FONT_HERSHEY_SCRIPT_SIMPLEX;
-                double fontscale = 1.0;
-                int baseline;
-                cv::Size textsize = cv::getTextSize(text, fontface, fontscale, 2,
-                                                &baseline);
-                cv::putText(frame_gray, text, cv::Point(det->c[0]-textsize.width/2,
-                                           det->c[1]+textsize.height/2),
-                        fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
+                    line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
+                             cv::Point(det->p[1][0], det->p[1][1]),
+                             cv::Scalar(0, 0xff, 0), 2);
+                    line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
+                             cv::Point(det->p[3][0], det->p[3][1]),
+                             cv::Scalar(0, 0, 0xff), 2);
+                    line(frame_gray, cv::Point(det->p[1][0], det->p[1][1]),
+                             cv::Point(det->p[2][0], det->p[2][1]),
+                             cv::Scalar(0xff, 0, 0), 2);
+                    line(frame_gray, cv::Point(det->p[2][0], det->p[2][1]),
+                             cv::Point(det->p[3][0], det->p[3][1]),
+                             cv::Scalar(0xff, 0, 0), 2);
+
+                    std::stringstream ss;
+                    ss << det->id;
+                    cv::String text = ss.str();
+                    int fontface = cv::FONT_HERSHEY_SCRIPT_SIMPLEX;
+                    double fontscale = 1.0;
+                    int baseline;
+                    cv::Size textsize = cv::getTextSize(text, fontface, fontscale, 2,
+                                                    &baseline);
+                    cv::putText(frame_gray, text, cv::Point(det->c[0]-textsize.width/2,
+                                               det->c[1]+textsize.height/2),
+                            fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
+
 
 
             }
