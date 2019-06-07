@@ -34,6 +34,7 @@ extern "C" {
 
 
 const std::string Navigate_to_land = "Navigate_to_land";
+const std::string MINISEARCH = "MINISEARCH";
 const std::string CAMERA_TEST = "CAMERA_TEST";
 
 
@@ -172,7 +173,7 @@ int VisionNode::run() {
     while (ros::ok()) {
 
         // Check if we should use the camera..
-        if (_STATE == Navigate_to_land || _STATE == CAMERA_TEST) {
+        if (_STATE == Navigate_to_land || _STATE == CAMERA_TEST || _STATE == MINISEARCH) {
 
             // Take a picture
             _camera.grab();
