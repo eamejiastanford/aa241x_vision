@@ -32,9 +32,8 @@ extern "C" {
 #include <std_msgs/Int64.h>
 #include <std_msgs/Bool.h>
 
-
-const std::string Navigate_to_land = "Navigate_to_land";
 const std::string MINISEARCH = "MINISEARCH";
+const std::string Hover_Search = "Hover_Search";
 const std::string CAMERA_TEST = "CAMERA_TEST";
 
 
@@ -173,7 +172,7 @@ int VisionNode::run() {
     while (ros::ok()) {
 
         // Check if we should use the camera..
-        if (_STATE == Navigate_to_land || _STATE == CAMERA_TEST || _STATE == MINISEARCH) {
+        if (_STATE == Hover_Search || _STATE == CAMERA_TEST || _STATE == MINISEARCH) {
 
             // Take a picture
             _camera.grab();
@@ -303,7 +302,99 @@ int VisionNode::run() {
                 id = det->id;
 
                 // Check if this is really an april tag based on detected z-axis orientation
-                if (_R33 >= 0.95 && (id == 9 || id == 5) ) {
+                if (_R33 >= 0.95 && (id == 9) ) {
+                    //Low Pass Filter Parameters
+                    float alpha = 0.2;
+                    float beta = 0.05;
+                    //Low Pass Filter
+                    x_est = alpha*x_raw +(1-alpha)*x_est;
+                    y_est = alpha*y_raw +(1-alpha)*y_est;
+                    z_est = beta*z_raw +(1-beta)*z_est;
+                    double distance = sqrt(x_est*x_est + y_est*y_est + z_est*z_est);
+
+                    // Add offsets from relative location of camera from drone center
+                    _xr = x_est + 0.2;
+                    _yr = y_est + 0.0;
+                    _zr = z_est + 0.0;
+
+                    // Publish the vector from the drone to the april tag (camera frame)
+                    _tag_relative_x_msg.data = _xr;
+                    _tag_relative_y_msg.data = _yr;
+                    _tag_relative_z_msg.data = _zr;
+                    _R33_msg.data = _R33;
+                    _detected_tag_msg.data = id;
+
+                    _tag_relative_x_pub.publish(_tag_relative_x_msg);
+                    _tag_relative_y_pub.publish(_tag_relative_y_msg);
+                    _tag_relative_z_pub.publish(_tag_relative_z_msg);
+                    _tag_found_pub.publish(_tag_found_msg);
+                    _R33_pub.publish(_R33_msg);
+                    _detected_tag_pub.publish(_detected_tag_msg);
+
+    //                cout << "this is the x: " << x_est << endl;
+    //                cout << "this is the y: " << y_est << endl;
+    //                cout << "this is the z: " << z_est << endl;
+    //                cout << "this is the distance: " << distance << endl;
+                }
+
+                    line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
+                             cv::Point(det->p[1][0], det->p[1][1]),
+                             cv::Scalar(0, 0xff, 0), 2);
+                    line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
+                             cv::Point(det->p[3][0], det->p[3][1]),
+                             cv::Scalar(0, 0, 0xff), 2);
+                    line(frame_gray, cv::Point(det->p[1][0], det->p[1][1]),
+                             cv::Point(det->p[2][0], det->p[2][1]),
+                             cv::Scalar(0xff, 0, 0), 2);
+                    line(frame_gray, cv::Point(det->p[2][0], det->p[2][1]),
+                             cv::Point(det->p[3][0], det->p[3][1]),
+                             cv::Scalar(0xff, 0, 0), 2);
+
+                    std::stringstream ss;
+                    ss << det->id;
+                    cv::String text = ss.str();
+                    int fontface = cv::FONT_HERSHEY_SCRIPT_SIMPLEX;
+                    double fontscale = 1.0;
+                    int baseline;
+                    cv::Size textsize = cv::getTextSize(text, fontface, fontscale, 2,
+                                                    &baseline);
+                    cv::putText(frame_gray, text, cv::Point(det->c[0]-textsize.width/2,
+                                               det->c[1]+textsize.height/2),
+                            fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
+
+            }
+
+            for (int i = 0; i < zarray_size(detections_36); i++) {
+                apriltag_detection_t *det;
+                zarray_get(detections_36, i, &det);
+
+                // Define camera parameters struct
+                apriltag_detection_info_t info;
+                info.det = det;
+                // ROSBAG DET:
+
+                //info.tagsize = 0.16;
+                info.tagsize = 0.40;
+                info.fx = 1.0007824174077226e+03;
+                info.fy = 1.0007824174077226e+03;
+                info.cx = 640.;
+                info.cy = 360.;
+
+                // Estimate pose
+                apriltag_pose_t pose;
+                double err = estimate_tag_pose(&info, &pose);
+                matd_t* t = pose.t;
+                matd_t* R = pose.R;
+                double *tData = t->data;
+                double *RData = R->data;
+                x_raw = tData[0];
+                y_raw = tData[1];
+                z_raw = tData[2];
+                _R33 = RData[8];
+                id = det->id;
+
+                // Check if this is really an april tag based on detected z-axis orientation
+                if (_R33 >= 0.95 && (id == 5) ) {
                     //Low Pass Filter Parameters
                     float alpha = 0.2;
                     float beta = 0.05;
