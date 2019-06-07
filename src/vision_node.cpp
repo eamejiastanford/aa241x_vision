@@ -82,6 +82,7 @@ private:
         std_msgs::Bool _tag_found_msg;
         std_msgs::String _droneState_msg;
         std_msgs::Float64 _R33_msg;
+        std_msgs::Int64 _detected_tag_msg;
 
 	// publishers
         ros::Publisher _tag_relative_x_pub;	// the relative position vector to the truck
@@ -90,6 +91,7 @@ private:
         ros::Publisher _tag_found_pub;
         ros::Publisher _tag_details_pub;	// the raw tag details (for debugging)
         ros::Publisher _R33_pub;
+        ros::Publisher _detected_tag_pub;
 
         // Callbacks
         void droneStateCallback(const std_msgs::String::ConstPtr& msg);
@@ -115,6 +117,7 @@ _frame_height(frame_height)
     _tag_relative_z_pub = _nh.advertise<std_msgs::Float64>("tag_rel_z", 10);
     _tag_found_pub      = _nh.advertise<std_msgs::Bool>("tagFound",10);
     _R33_pub = _nh.advertise<std_msgs::Float64>("R33",10);
+    _detected_tag_pub = _nh.advertise<std_msgs::Int>("detected_tag");
 
     // Subscribers
     _droneState_sub = _nh.subscribe<std_msgs::String>("drone_state", 10, &VisionNode::droneStateCallback, this);
@@ -146,10 +149,11 @@ int VisionNode::run() {
     // apriltag handling setup
     apriltag_family_t *tf = tag16h5_create();
     //apriltag_family_t *tf = tag36h11_create();
+
     apriltag_detector_t *td = apriltag_detector_create();
     apriltag_detector_add_family(td, tf);
-    td->quad_decimate = 3.0;
-    td->quad_sigma = 0.0;
+    td->quad_decimate = 1.0;//3.0;
+    td->quad_sigma = 0.25;//0.0;
     td->refine_edges = 0;
     //td->decode_sharpening = 0.25;
 
@@ -192,6 +196,8 @@ int VisionNode::run() {
                 // Define camera parameters struct
                 apriltag_detection_info_t info;
                 info.det = det;
+                // ROSBAG DET:
+
                 //info.tagsize = 0.16;
                 info.tagsize = 0.09;
                 info.fx = 1.0007824174077226e+03;
@@ -210,6 +216,7 @@ int VisionNode::run() {
                 y_raw = tData[1];
                 z_raw = tData[2];
                 _R33 = RData[8];
+
                 //Low Pass Filter Parameters
                 float alpha = 0.2;
                 float beta = 0.05;
@@ -228,12 +235,16 @@ int VisionNode::run() {
                 _tag_relative_y_msg.data = _yr;
                 _tag_relative_z_msg.data = _zr;
                 _R33_msg.data = _R33;
+                _detected_tag_msg.data = det;
+
 
                 _tag_relative_x_pub.publish(_tag_relative_x_msg);
                 _tag_relative_y_pub.publish(_tag_relative_y_msg);
                 _tag_relative_z_pub.publish(_tag_relative_z_msg);
                 _tag_found_pub.publish(_tag_found_msg);
                 _R33_pub.publish(_R33_msg);
+                _detected_tag_pub.publish(_detected_tag_msg);
+
 //                cout << "this is the x: " << x_est << endl;
 //                cout << "this is the y: " << y_est << endl;
 //                cout << "this is the z: " << z_est << endl;
