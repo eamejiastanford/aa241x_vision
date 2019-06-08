@@ -172,8 +172,8 @@ int VisionNode::run() {
     while (ros::ok()) {
 
         // Check if we should use the camera..
-        //if (_STATE == Hover_Search || _STATE == CAMERA_TEST || _STATE == MINISEARCH) {
-        if(true) {
+        if (_STATE == Hover_Search || _STATE == CAMERA_TEST || _STATE == MINISEARCH) {
+        //if(true) {
 
             // Take a picture
             _camera.grab();
