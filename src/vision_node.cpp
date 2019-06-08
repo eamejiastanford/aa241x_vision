@@ -234,7 +234,7 @@ int VisionNode::run() {
                 id = det->id;
 
                 // Check if this is really an april tag based on detected z-axis orientation
-                if (_R33 >= 0.95 && (id == 0 || id == 1 || id == 2 || id == 3) ) {
+                if (_R33 >= 0.90 && (id == 0 || id == 1 || id == 2 || id == 3) ) {
                     //Low Pass Filter Parameters
                     float alpha = 0.2;
                     float beta = 0.05;
@@ -302,7 +302,7 @@ int VisionNode::run() {
                 id = det->id;
 
                 // Check if this is really an april tag based on detected z-axis orientation
-                if (_R33 >= 0.95 && (id == 9) ) {
+                if (_R33 >= 0.90 && (id == 9) ) {
                     //Low Pass Filter Parameters
                     float alpha = 0.2;
                     float beta = 0.05;
@@ -394,7 +394,7 @@ int VisionNode::run() {
                 id = det->id;
 
                 // Check if this is really an april tag based on detected z-axis orientation
-                if (_R33 >= 0.95 && (id == 5) ) {
+                if (_R33 >= 0.90 && (id == 5) ) {
                     //Low Pass Filter Parameters
                     float alpha = 0.2;
                     float beta = 0.05;
