@@ -238,6 +238,7 @@ int VisionNode::run() {
                     //Low Pass Filter Parameters
                     float alpha = 0.8;
                     float beta = 0.8;
+
                     //Low Pass Filter
                     x_est = alpha*x_raw +(1-alpha)*x_est;
                     y_est = alpha*y_raw +(1-alpha)*y_est;
@@ -302,6 +303,7 @@ int VisionNode::run() {
                     //Low Pass Filter Parameters
                     float alpha = 0.8;
                     float beta = 0.8;
+
                     //Low Pass Filter
                     x_est = alpha*x_raw +(1-alpha)*x_est;
                     y_est = alpha*y_raw +(1-alpha)*y_est;
@@ -387,8 +389,10 @@ int VisionNode::run() {
                 // Check if this is really an april tag based on detected z-axis orientation
                 if (_R33 >= 0.95 && (id == 5) ) {
                     //Low Pass Filter Parameters
+
                     float alpha = 0.8;
                     float beta = 0.8;
+
                     //Low Pass Filter
                     x_est = alpha*x_raw +(1-alpha)*x_est;
                     y_est = alpha*y_raw +(1-alpha)*y_est;
