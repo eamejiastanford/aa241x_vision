@@ -34,7 +34,6 @@ extern "C" {
 
 const std::string MINISEARCH = "MINISEARCH";
 const std::string Hover_Search = "Hover_Search";
-const std::string CAMERA_TEST = "CAMERA_TEST";
 const std::string LAND = "LAND";
 const std::string Navigate_to_land = "Navigate_to_land";
 
@@ -173,7 +172,7 @@ int VisionNode::run() {
     while (ros::ok()) {
 
         // Check if we should use the camera..
-        if (_STATE == Hover_Search || _STATE == MINISEARCH || _STATE == Navigate_to_land || _STATE == LAND || _STATE == CAMERA_TEST) {
+        if (_STATE == Hover_Search || _STATE == MINISEARCH || _STATE == Navigate_to_land || _STATE == LAND ) {
 
             // Take a picture
             _camera.grab();
@@ -264,10 +263,6 @@ int VisionNode::run() {
                     _R33_pub.publish(_R33_msg);
                     _detected_tag_pub.publish(_detected_tag_msg);
 
-    //                cout << "this is the x: " << x_est << endl;
-    //                cout << "this is the y: " << y_est << endl;
-    //                cout << "this is the z: " << z_est << endl;
-    //                cout << "this is the distance: " << distance << endl;
                 }
 
             }
@@ -331,11 +326,6 @@ int VisionNode::run() {
                     _tag_found_pub.publish(_tag_found_msg);
                     _R33_pub.publish(_R33_msg);
                     _detected_tag_pub.publish(_detected_tag_msg);
-
-    //                cout << "this is the x: " << x_est << endl;
-    //                cout << "this is the y: " << y_est << endl;
-    //                cout << "this is the z: " << z_est << endl;
-    //                cout << "this is the distance: " << distance << endl;
                 }
 
                     line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
@@ -424,10 +414,6 @@ int VisionNode::run() {
                     _R33_pub.publish(_R33_msg);
                     _detected_tag_pub.publish(_detected_tag_msg);
 
-    //                cout << "this is the x: " << x_est << endl;
-    //                cout << "this is the y: " << y_est << endl;
-    //                cout << "this is the z: " << z_est << endl;
-    //                cout << "this is the distance: " << distance << endl;
                 }
 
                     line(frame_gray, cv::Point(det->p[0][0], det->p[0][1]),
@@ -459,11 +445,8 @@ int VisionNode::run() {
             // clean up the detections
             zarray_destroy(detections_16);
             zarray_destroy(detections_36);
-
         }
-
         ros::spinOnce();
-
     }
 
     // need to stop the camera
@@ -475,7 +458,6 @@ int VisionNode::run() {
 	apriltag_detector_destroy(td_36);
 	tag16h5_destroy(tf_16);
 	tag36h11_destroy(tf_36);
-    //tag36h11_destroy(tf);
 
 }
 
