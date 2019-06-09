@@ -35,7 +35,8 @@ extern "C" {
 const std::string MINISEARCH = "MINISEARCH";
 const std::string Hover_Search = "Hover_Search";
 const std::string CAMERA_TEST = "CAMERA_TEST";
-
+const std::string LAND = "LAND";
+const std::string Navigate_to_land = "Navigate_to_land";
 
 using namespace std;
 
@@ -172,7 +173,7 @@ int VisionNode::run() {
     while (ros::ok()) {
 
         // Check if we should use the camera..
-        if (_STATE == Hover_Search || _STATE == CAMERA_TEST || _STATE == MINISEARCH) {
+        if (_STATE == Hover_Search || _STATE == MINISEARCH || _STATE == Navigate_to_land || _STATE == LAND || _STATE == CAMERA_TEST) {
 
             // Take a picture
             _camera.grab();
@@ -234,10 +235,10 @@ int VisionNode::run() {
                 id = det->id;
 
                 // Check if this is really an april tag based on detected z-axis orientation
-                if (_R33 >= 0.90 && (id == 0 || id == 1 || id == 2 || id == 3) ) {
+                if (_R33 >= 0.95 && (id == 0 || id == 1 || id == 2 || id == 3) ) {
                     //Low Pass Filter Parameters
-                    float alpha = 0.2;
-                    float beta = 0.05;
+                    float alpha = 0.8;
+                    float beta = 0.8;
                     //Low Pass Filter
                     x_est = alpha*x_raw +(1-alpha)*x_est;
                     y_est = alpha*y_raw +(1-alpha)*y_est;
@@ -245,7 +246,7 @@ int VisionNode::run() {
                     double distance = sqrt(x_est*x_est + y_est*y_est + z_est*z_est);
 
                     // Add offsets from relative location of camera from drone center
-                    _xr = x_est + 0.2;
+                    _xr = x_est + 1.0;
                     _yr = y_est + 0.0;
                     _zr = z_est + 0.0;
 
@@ -302,10 +303,10 @@ int VisionNode::run() {
                 id = det->id;
 
                 // Check if this is really an april tag based on detected z-axis orientation
-                if (_R33 >= 0.90 && (id == 9) ) {
+                if (_R33 >= 0.95 && (id == 9) ) {
                     //Low Pass Filter Parameters
-                    float alpha = 0.2;
-                    float beta = 0.05;
+                    float alpha = 0.8;
+                    float beta = 0.8;
                     //Low Pass Filter
                     x_est = alpha*x_raw +(1-alpha)*x_est;
                     y_est = alpha*y_raw +(1-alpha)*y_est;
@@ -313,7 +314,7 @@ int VisionNode::run() {
                     double distance = sqrt(x_est*x_est + y_est*y_est + z_est*z_est);
 
                     // Add offsets from relative location of camera from drone center
-                    _xr = x_est + 0.2;
+                    _xr = x_est + 1.0;
                     _yr = y_est + 0.0;
                     _zr = z_est + 0.0;
 
@@ -394,10 +395,10 @@ int VisionNode::run() {
                 id = det->id;
 
                 // Check if this is really an april tag based on detected z-axis orientation
-                if (_R33 >= 0.90 && (id == 5) ) {
+                if (_R33 >= 0.95 && (id == 5) ) {
                     //Low Pass Filter Parameters
-                    float alpha = 0.2;
-                    float beta = 0.05;
+                    float alpha = 0.8;
+                    float beta = 0.8;
                     //Low Pass Filter
                     x_est = alpha*x_raw +(1-alpha)*x_est;
                     y_est = alpha*y_raw +(1-alpha)*y_est;
@@ -405,7 +406,7 @@ int VisionNode::run() {
                     double distance = sqrt(x_est*x_est + y_est*y_est + z_est*z_est);
 
                     // Add offsets from relative location of camera from drone center
-                    _xr = x_est + 0.2;
+                    _xr = x_est + 1.0;
                     _yr = y_est + 0.0;
                     _zr = z_est + 0.0;
 
